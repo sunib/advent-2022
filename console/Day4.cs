@@ -21,27 +21,15 @@ public class Range
         return other.Begin >= Begin && other.End <= End;
     }
 
-    // No overlap:
-    // .234...
-    // .....6.
-    //
-    // Overlap
-    // .234...
-    // ...45
-    //
-    // But also:
-    // ...45.
-    // .234..
-    //
-    // .2345.
-    // ..34.. Is this overlapping then?
     public bool Overlap(Range other)
     {
-        return
-            (other.Begin >= Begin && other.Begin <= End) ||
-            (other.End >= Begin && other.End <= End) ||
-            (Begin >= other.Begin && Begin <= other.End) ||
-            (End >= other.Begin && End <= other.End);
+        // return
+        //     (other.Begin >= Begin && other.Begin <= End) ||
+        //     (other.End >= Begin && other.End <= End) ||
+        //     (Begin >= other.Begin && Begin <= other.End) ||
+        //     (End >= other.Begin && End <= other.End);
+        // Works exactly the same but shorter: https://gathering.tweakers.net/forum/list_messages/2160536/7#73684330
+        return End >= other.Begin && other.End >= Begin;
     }
 }
 
@@ -62,7 +50,6 @@ public class ElvePair
 
     public bool FullyContains()
     {
-        // Does one range contain the other?
         return First.IsWithin(Second) || Second.IsWithin(First);
     }
 }
@@ -87,7 +74,6 @@ public class Day4
             throw new InvalidDataException("Unexpected number of groups parsed on line");
     }
 
-
     public async Task Execute()
     {
         var lines = await File.ReadAllLinesAsync("day4.txt");
@@ -95,7 +81,6 @@ public class Day4
         var answer = elvePairs.Count(ep => ep.FullyContains());
         System.Console.WriteLine(answer);
         var answer2 = elvePairs.Count(ep => ep.Overlap());
-        System.Console.WriteLine(answer2);  // Answer is to low! 635 --> 
+        System.Console.WriteLine(answer2);
     }
-
 }

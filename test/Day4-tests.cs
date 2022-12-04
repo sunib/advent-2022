@@ -3,11 +3,8 @@ using advent_of_code;
 
 public class Tests
 {
-    [SetUp]
-    public void Setup()
-    {
-    }
-
+    // .234...
+    // ...45
     [Test]
     public void EdgeOverlap()
     {
@@ -22,6 +19,8 @@ public class Tests
         Assert.True(r4.Overlap(r3));
     }
 
+    // ....56.
+    // .23....
     [Test]
     public void NoOverlap()
     {
@@ -31,6 +30,8 @@ public class Tests
         Assert.False(r2.Overlap(r1));
     }
 
+    // .2345.
+    // ..34.. Is this overlapping in both directions?
     [Test]
     public void InTheMiddleOverlap()
     {
@@ -38,7 +39,6 @@ public class Tests
         var r2 = new Range("5", "6");
         Assert.True(r1.Overlap(r2));
         Assert.True(r2.Overlap(r1)); //Not sure: is this an overlap? Or an underlap? :-)
-
     }
 
 }
