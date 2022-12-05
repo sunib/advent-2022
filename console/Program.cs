@@ -1,2 +1,2 @@
 ﻿using advent_of_code;
-await new Day4().Execute();
+await new Day5().Execute();
