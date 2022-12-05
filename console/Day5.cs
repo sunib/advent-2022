@@ -68,7 +68,7 @@ public class Day5
 
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("console/day5.txt");
+        var lines = await File.ReadAllLinesAsync("day5.txt");
 
         // Start parsing the rest
         var headerLines = lines.TakeWhile(s => s != string.Empty).ToArray();
@@ -78,6 +78,8 @@ public class Day5
             .Select(l => ParseInstruction(l))
             .ToArray();
 
+        var toBeMoved = new Stack<char>();
+        var executedInstructions = 0;
         foreach (var instruction in instructions)
         {
             // Answer 1
@@ -86,15 +88,16 @@ public class Day5
             //     stacks[instruction.To].Push(
             //         stacks[instruction.From].Pop());
             // }
-            //var toBeMoved = stacks[instruction.From].Take(instruction.Count);
-            //stacks[instruction.To] = new Stack<char>(stacks[instruction.To].Concat(toBeMoved));
             
             // Answer 2
-            var toBeMoved = new Stack<char>();
             while (instruction.Count-- > 0)
                 toBeMoved.Push(stacks[instruction.From].Pop());
             while(toBeMoved.Count > 0)
-                stacks[instruction.To].Push(toBeMoved.Pop());                    
+                stacks[instruction.To].Push(toBeMoved.Pop());
+            
+            if (executedInstructions++ % 10000 == 0) {
+                System.Console.WriteLine(((float)executedInstructions / (float)instructions.Length)*100 + "%");             
+            }
         }
 
         System.Console.WriteLine("Answer: " + new String(stacks.Select(s=>s.Peek()).ToArray())); 
