@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace advent_of_code;
 
-public record CraneInstruction 
+public record CraneInstruction
 {
     public int Count { get; set; }
     public int From { get; set; }
@@ -54,7 +54,8 @@ public class Day5
         var matches = instructionParser.Match(line);
         if (matches.Groups.Count == 4)
         {
-            return new CraneInstruction {
+            return new CraneInstruction
+            {
                 Count = int.Parse(matches.Groups[1].Value),
                 From = int.Parse(matches.Groups[2].Value) - 1,  // Zero-based please
                 To = int.Parse(matches.Groups[3].Value) - 1 // Zero-based please
@@ -68,7 +69,7 @@ public class Day5
 
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("day5.txt");
+        var lines = await File.ReadAllLinesAsync("day5_6mb_large.txt");
 
         // Start parsing the rest
         var headerLines = lines.TakeWhile(s => s != string.Empty).ToArray();
@@ -83,23 +84,24 @@ public class Day5
         foreach (var instruction in instructions)
         {
             // Answer 1
-            // while (instruction.Count-- > 0)
-            // {
-            //     stacks[instruction.To].Push(
-            //         stacks[instruction.From].Pop());
-            // }
-            
-            // Answer 2
             while (instruction.Count-- > 0)
-                toBeMoved.Push(stacks[instruction.From].Pop());
-            while(toBeMoved.Count > 0)
-                stacks[instruction.To].Push(toBeMoved.Pop());
-            
-            if (executedInstructions++ % 10000 == 0) {
-                System.Console.WriteLine(((float)executedInstructions / (float)instructions.Length)*100 + "%");             
+            {
+                stacks[instruction.To].Push(
+                    stacks[instruction.From].Pop());
+            }
+
+            // Answer 2
+            // while (instruction.Count-- > 0)
+            //     toBeMoved.Push(stacks[instruction.From].Pop());
+            // while (toBeMoved.Count > 0)
+            //     stacks[instruction.To].Push(toBeMoved.Pop());
+
+            if (executedInstructions++ % 10000 == 0)
+            {
+                System.Console.WriteLine(((float)executedInstructions / (float)instructions.Length) * 100 + "%");
             }
         }
 
-        System.Console.WriteLine("Answer: " + new String(stacks.Select(s=>s.Peek()).ToArray())); 
+        System.Console.WriteLine("Answer: " + new String(stacks.Select(s => s.Peek()).ToArray()));
     }
 }
