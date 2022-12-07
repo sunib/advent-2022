@@ -3,17 +3,15 @@ namespace advent_of_code;
 
 
 public class SimpleNode {
-    public SimpleNode(string name, bool isDir, SimpleNode parent, int size = 0)
+    public SimpleNode(string name, SimpleNode parent, int size = 0)
     {
         Name = name;
         Size = size;
         Parent = parent;
-        IsDir = isDir;
     }
 
     public int Size { get; set; }   // This is the total size of all children!
     public string Name { get; set; }
-    public bool IsDir { get; set; }
     public List<SimpleNode> Children {get; set; } = new List<SimpleNode>();
     public SimpleNode? Parent {get; set;}
 }
@@ -22,11 +20,17 @@ public class Day7
 {
     public async Task Execute()
     {
-        var root = new SimpleNode("root", true, null, 0);
+        var root = new SimpleNode("root", null, 0);
         var currentNode = root;
-        var lines = await File.ReadAllLinesAsync("console/day7.txt");
+        var lines = await File.ReadAllLinesAsync("day7_5mb_large.txt");
+        int lineCount = 0;
         foreach (var line in lines)
         {
+            if (lineCount++ % 10000 == 0)
+            {
+                System.Console.WriteLine(((float)lineCount / (float)lines.Length) * 100 + "%");
+            }
+
             var parts = line.Split(' ');
             if (parts[0] == "$")
             {
@@ -54,13 +58,11 @@ public class Day7
             {
                 if (parts[0] == "dir")
                 {
-                    currentNode.Children.Add(new SimpleNode(parts[1], true, currentNode, 0));
+                    currentNode.Children.Add(new SimpleNode(parts[1], currentNode, 0));
                 }
                 else
                 {
-                    var fileSize = int.Parse(parts[0]);
-                    currentNode.Children.Add(new SimpleNode(parts[1], false, currentNode, fileSize));
-                    
+                    var fileSize = int.Parse(parts[0]);                    
                     // Move up and add number of bytes so that we have our totals
                     var sumNode = currentNode;
                     while (sumNode != null)
@@ -90,12 +92,12 @@ public class Day7
     public SimpleNode CountBigFolders(SimpleNode start, SimpleNode currentLowest, int minimalDeleted)
     {
         SimpleNode result = currentLowest;        
-        if (start.IsDir && start.Size <= currentLowest.Size && start.Size >= minimalDeleted && start.Parent != null)
+        if (start.Size <= currentLowest.Size && start.Size >= minimalDeleted && start.Parent != null)
         {
             result = start;
         }
 
-        foreach (var folder in start.Children.Where(i => i.IsDir))
+        foreach (var folder in start.Children)
         {
             result = CountBigFolders(folder, result, minimalDeleted);
         }
