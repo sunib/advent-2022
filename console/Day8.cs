@@ -47,7 +47,7 @@ public class Day8
     
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("console/day8-simple.txt");
+        var lines = await File.ReadAllLinesAsync("console/day8.txt");
         var maxX = lines[0].Length;
         var maxY = lines.Length;
 
@@ -97,6 +97,56 @@ public class Day8
         }
 
         System.Console.WriteLine("Number of visible trees: " + visibleTrees);
+    
+        // Part 2
+        // Get to each tree and calculate how many trees it can see. Pick the 
+        var example1 = CalculateMultipliedSCore(2, 1, maxX, maxY, heights);
+        var example2 = CalculateMultipliedSCore(2, 3, maxX, maxY, heights);
+
+        int highestScenicScore = 0;
+        for (int y = 1; y < (maxY - 1); y++)
+        {
+            for (int x = 1; x < (maxX - 1); x++)
+            {
+                int score = CalculateMultipliedSCore(x, y, maxX, maxY, heights);
+                if (score > highestScenicScore)
+                {
+                    highestScenicScore = score;
+                }
+            }
+        }
+
+        System.Console.WriteLine("Highest score: " + highestScenicScore);
+    
+    }
+
+    public int CalculateMultipliedSCore(int x, int y, int maxX, int maxY, int[,] heights)
+    {
+        var pos = new AwareCoordinate(x, y, maxX, maxY);
+        var d1 = CalculateScenicScore(pos, heights[x,y], 0, heights, aw => aw.GoUp());
+        pos = new AwareCoordinate(x, y, maxX, maxY);
+        var d2 = CalculateScenicScore(pos, heights[x,y], 0, heights, aw => aw.GoLeft());
+        pos = new AwareCoordinate(x, y, maxX, maxY);
+        var d3 = CalculateScenicScore(pos, heights[x,y], 0, heights, aw => aw.GoRight());
+        pos = new AwareCoordinate(x, y, maxX, maxY);
+        var d4 = CalculateScenicScore(pos, heights[x,y], 0, heights, aw => aw.GoDown());
+        return d1*d2*d3*d4;
+    }
+
+
+    public int CalculateScenicScore(AwareCoordinate pos, int maxHeight, int depth, int[,] heights, Func<AwareCoordinate, bool> next)
+    {
+        int result = depth;
+        if (heights[pos.X, pos.Y] < maxHeight || result == 0)
+        {
+            if (next(pos))
+            {
+                result++;
+                result = CalculateScenicScore(pos, maxHeight, result, heights, next);
+            }
+        }
+
+        return result;
     }
 
     public void PlayLightParticle(AwareCoordinate pos, int currentHeight, int[,] heights, int[,] vissible, Func<AwareCoordinate, bool> next)
