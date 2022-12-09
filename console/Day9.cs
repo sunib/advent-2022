@@ -1,6 +1,11 @@
 namespace advent_of_code_day9;
 
-public class Head 
+public interface IPoint {
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public class Head : IPoint
 {
     public Head(int x, int y)
     {
@@ -33,23 +38,23 @@ public class Head
     }
 }
 
-public class Tail
+public class Knot : IPoint
 {
-    public Tail(int x, int y, Head head)
+    public Knot(int x, int y, IPoint followPoint)
     {
-        Head = head;
+        FollowPoint = followPoint;
         X = x;
         Y = y;
     }
 
-    public Head Head { get; set; }
+    public IPoint FollowPoint { get; set; }
     public int X { get; set; }
     public int Y { get; set; }
 
     // Want to follow head but we should get a signal that something changes
     private Tuple<int,int> CalculateDelta()
     {
-        return new Tuple<int,int>(Head.X - X, Head.Y - Y);
+        return new Tuple<int,int>(FollowPoint.X - X, FollowPoint.Y - Y);
     }
 
     private bool IsAdjacentOrSame(Tuple<int,int> delta)        // Is it close enough to the head?
@@ -137,7 +142,14 @@ public class Day9
         // Setup initial state
         var tailVisits = new HashSet<Tuple<int, int>>();
         var head = new Head(0, 0);
-        var tail = new Tail(0, 0, head);
+
+        var knots = new List<Knot>();
+        IPoint tail = head;
+        while (knots.Count < 9)
+        {
+            knots.Add(new Knot(0, 0, tail));
+            tail = knots.Last();            
+        }
 
         // Calculate all instructions and mark the places where the tail was
         foreach (var instruction in instructions)
@@ -145,12 +157,15 @@ public class Day9
             while (instruction.Repeats-- > 0)
             {
                 instruction.HeadAction(head);
-                tail.Follow();
+                foreach (var knot in knots)
+                {
+                    knot.Follow();                    
+                }
+                
                 tailVisits.Add(new Tuple<int, int>(tail.X, tail.Y));
             }
         }
 
         System.Console.WriteLine("tailPositions: " + tailVisits.Count());    
     }
-
 }
