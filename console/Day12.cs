@@ -69,45 +69,45 @@ public class Explorer : ICloneable
     // Return true if succesfull
     public bool TryDown(MapPoint[,] map, out MapPoint next)
     {
-        next = null;
         if (Current.Y + 1 < MaxY) {
             next = map[Current.X, Current.Y + 1];
             return true;
         }
         
+        next = null;
         return false;
     }
 
     public bool TryUp(MapPoint[,] map, out MapPoint next)
     {
-        next = null;
         if (Current.Y > 0) {
             next = map[Current.X, Current.Y - 1];
             return true;
         }
         
+        next = null;
         return false;
     }
 
     public bool TryRight(MapPoint[,] map, out MapPoint next)
     {
-        next = null;
         if (Current.X + 1 < MaxX) {
             next = map[Current.X + 1, Current.Y];
             return true;
         }
         
+        next = null;
         return false;
     }
 
     public bool TryLeft(MapPoint[,] map, out MapPoint next)
     {
-        next = null;
         if (Current.X > 0) {
             next = map[Current.X - 1, Current.Y];
             return true;
         }
         
+        next = null;
         return false;
     }
 }
@@ -120,7 +120,6 @@ public class MapPoint
     {
         this.X = x;
         this.Y = y;
-
         if (c == 'S')
         {
             this.Height = 0;
@@ -163,27 +162,40 @@ public class Day12
         var maxY = lines.Length;
 
         // No let's parse it into a field double index :-)
-        Explorer firstExplorer = null;
-        var unvisitedPoints = new HashSet<MapPoint>();
+        var allPoints = new HashSet<MapPoint>();
+        var startPoints = new HashSet<MapPoint>();
         MapPoint[,] map = new MapPoint[maxX, maxY];
+
         for (int y = 0; y < maxY; y++)
         {
             for (int x = 0; x < maxX; x++)
             {
-                var newPoint = new MapPoint(lines[y][x], x, y);
-                unvisitedPoints.Add(newPoint);  // Should begin and end also sit in this?
+                char c = lines[y][x];
+                var newPoint = new MapPoint(c, x, y);
                 map[x,y] = newPoint;
-                if (newPoint.IsStart) {
-                    newPoint.TentativeDistanceValue = 0;
-                    firstExplorer = new Explorer(newPoint, maxX, maxY);
+                allPoints.Add(newPoint);
+                if (c == 'a')
+                {
+                    startPoints.Add(newPoint);
                 }
             }
         }
 
-        if (firstExplorer != null){
-            var answer1 = Explore(unvisitedPoints, map);
-            System.Console.WriteLine($"Answer 1 {answer1}");
-        }    
+        var allAnswers = startPoints.Select(s => FindNumberOfSteps(s, allPoints, map)).OrderBy(i => i).ToArray();
+        System.Console.WriteLine($"part2: {allAnswers[0]}");     
+    }
+
+    public uint FindNumberOfSteps(MapPoint start, HashSet<MapPoint> allPoints, MapPoint[,] map)
+    {
+        foreach (var point in allPoints)
+        {
+            point.TentativeDistanceValue = uint.MaxValue;
+            point.IsVisited = false;
+        }
+
+        start.TentativeDistanceValue = 0;
+        var unvisited = allPoints.ToHashSet();
+        return Explore(unvisited, map);
     }
 
     public uint Explore(HashSet<MapPoint> unvisited, MapPoint[,] map) {
@@ -193,8 +205,6 @@ public class Day12
             
             if (closestExlorer.Current.IsEnd) 
             {
-                // Oh wauw!
-                System.Console.WriteLine("Yes found it");
                 return closest.TentativeDistanceValue;
             }
 
