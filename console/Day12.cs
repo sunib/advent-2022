@@ -1,97 +1,114 @@
 namespace advent_of_code_day12;
-
-public class Explorer 
+// Following dijkstra
+// https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm
+public class Explorer : ICloneable
 {
-    public Explorer(int x, int y, int maxX, int maxY)
+    public Explorer(MapPoint current, int maxX, int maxY)
     {
-        X = x;
-        Y = y;
+        this.Current = current;
         MaxX = maxX;
         MaxY = maxY;
     }
 
-    public int X { get; set; }
-    public int Y { get; set; }
+    public MapPoint Current { get; set; }
+
+    public object Clone()
+    {
+        return new Explorer(Current, MaxX, MaxY);
+    }
 
     public int MaxX { get; set; }
     public int MaxY { get; set; }
 
-    public List<Tuple<int, int>> History {get;set;} = new List<Tuple<int,int>>();
-
-    public bool CheckDestination(MapPoint current, MapPoint destination)
+    public bool CanVisit(MapPoint current, MapPoint destination, HashSet<MapPoint> unvisited)
     {
         var diff = destination.Height - current.Height;
-        if (diff <= 1 && !destination.IsVisited)  //&& diff >= -1
+        if (diff <= 1 && unvisited.Contains(destination) && !destination.IsVisited)  //&& diff >= -1  !destination.IsVisited
         {    
+            var newValue = this.Current.TentativeDistanceValue + 1; // All our paths are always 1
+            if (newValue < destination.TentativeDistanceValue)
+            {
+                destination.TentativeDistanceValue = newValue;
+            }
+            
             return true;
         }
         
         return false;
     }
 
-    public bool AreWeDone(MapPoint[,] map)
+    public void Visit(HashSet<MapPoint> unvisited, MapPoint[,] map)
     {
-        var currentPoint = map[this.X,this.Y];
-        return currentPoint.IsEnd;
-    }
-
-    public IEnumerable<Explorer> LookArround(MapPoint[,] map)
-    {
-        // What are the options here?
-        // Only 1 lower or 1 heigher and off course need to stay on the map
-        // Also check if we have been there
-        var currentPoint = map[this.X,this.Y];
-        currentPoint.IsVisited = true;
-        var test = (Explorer)this.MemberwiseClone();
-        if (test.GoUp() && CheckDestination(currentPoint, map[test.X,test.Y]))
+        MapPoint next;
+        if (TryDown(map, out next)) 
         {
-            yield return test;
+            CanVisit(this.Current, next, unvisited);
         }
 
-        test = (Explorer)this.MemberwiseClone();
-        if (test.GoDown() && CheckDestination(currentPoint, map[test.X,test.Y]))
+        if (TryUp(map, out next)) 
         {
-            yield return test;
+            CanVisit(this.Current, next, unvisited);
         }
 
-        test = (Explorer)this.MemberwiseClone();
-        if (test.GoLeft() && CheckDestination(currentPoint, map[test.X,test.Y]))
+        if (TryLeft(map, out next)) 
         {
-            yield return test;
+            CanVisit(this.Current, next, unvisited);
         }
 
-        test = (Explorer)this.MemberwiseClone();
-        if (test.GoRight() && CheckDestination(currentPoint, map[test.X,test.Y]))
+        if (TryRight(map, out next)) 
         {
-            yield return test;
+            CanVisit(this.Current, next, unvisited);
         }
+
+        Current.IsVisited = true;
+        unvisited.Remove(Current);
     }
 
     
     // Find the other options and call them with yourself, or should we be able to make a copy of the object?
     // Return true if succesfull
-    public bool GoDown()
+    public bool TryDown(MapPoint[,] map, out MapPoint next)
     {
-        Y += 1;
-        return (Y < MaxY);
+        next = null;
+        if (Current.Y + 1 < MaxY) {
+            next = map[Current.X, Current.Y + 1];
+            return true;
+        }
+        
+        return false;
     }
 
-    public bool GoUp()
+    public bool TryUp(MapPoint[,] map, out MapPoint next)
     {
-        Y -= 1;
-        return (Y >= 0);
+        next = null;
+        if (Current.Y > 0) {
+            next = map[Current.X, Current.Y - 1];
+            return true;
+        }
+        
+        return false;
     }
 
-    public bool GoRight()
+    public bool TryRight(MapPoint[,] map, out MapPoint next)
     {
-        X += 1;
-        return (X < MaxX);
+        next = null;
+        if (Current.X + 1 < MaxX) {
+            next = map[Current.X + 1, Current.Y];
+            return true;
+        }
+        
+        return false;
     }
 
-    public bool GoLeft()
+    public bool TryLeft(MapPoint[,] map, out MapPoint next)
     {
-        X -= 1;
-        return (X >= 0);
+        next = null;
+        if (Current.X > 0) {
+            next = map[Current.X - 1, Current.Y];
+            return true;
+        }
+        
+        return false;
     }
 }
 
@@ -99,8 +116,11 @@ public class MapPoint
 {
     // The x and y is in the array so we don't care here? Or should we know our neighbours?
     // The score should be there, we should be able to compare them easily.
-    public MapPoint(char c)
+    public MapPoint(char c, int x, int y)
     {
+        this.X = x;
+        this.Y = y;
+
         if (c == 'S')
         {
             this.Height = 0;
@@ -114,11 +134,10 @@ public class MapPoint
         else 
         {
             this.Height = CalcCharHeight(c);
-        }
-
+        }   
     }
 
-    public int CalcCharHeight(char c)
+    private int CalcCharHeight(char c)
     {
         return (int)c - 'a' + 1;
     }
@@ -126,62 +145,62 @@ public class MapPoint
     public bool IsEnd { get; set; }
     public bool IsStart { get; set; }
     public bool IsVisited { get; set; }
+    public uint TentativeDistanceValue { get; set; } = uint.MaxValue;
     public int Height {get; set; }
+
+    public int X { get; set; }
+    public int Y { get; set; }
+
     
 }
 
 public class Day12
 {
-    
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("console/day12-simple.txt");
+        var lines = await File.ReadAllLinesAsync("console/day12.txt");
         var maxX = lines[0].Length;
         var maxY = lines.Length;
 
         // No let's parse it into a field double index :-)
         Explorer firstExplorer = null;
+        var unvisitedPoints = new HashSet<MapPoint>();
         MapPoint[,] map = new MapPoint[maxX, maxY];
         for (int y = 0; y < maxY; y++)
         {
             for (int x = 0; x < maxX; x++)
             {
-                var newPoint = new MapPoint(lines[y][x]);
+                var newPoint = new MapPoint(lines[y][x], x, y);
+                unvisitedPoints.Add(newPoint);  // Should begin and end also sit in this?
                 map[x,y] = newPoint;
                 if (newPoint.IsStart) {
-                    firstExplorer = new Explorer(x, y, maxX, maxY);
+                    newPoint.TentativeDistanceValue = 0;
+                    firstExplorer = new Explorer(newPoint, maxX, maxY);
                 }
             }
         }
 
         if (firstExplorer != null){
-            var shortestPath = Explore(firstExplorer, map);
-            System.Console.WriteLine($"Answer 1: { shortestPath }");
-        }
-
-        // We need recursion anyhow, so we will need to keep some stat on the points (where have we been what is shortest path back). The first one wins, how does that exactly work?
-        // First see where you can go: then go and keep a pointer where you are going. This is only used for the single way back.
-
-        // Do we need a walk arround object that is going to keep a stack with previous locations? What is the actual answer?
-    
+            var answer1 = Explore(unvisitedPoints, map);
+            System.Console.WriteLine($"Answer 1 {answer1}");
+        }    
     }
 
-    public int Explore(Explorer explorer, MapPoint[,] map) {
-        if (explorer.AreWeDone(map))
-        {
-            return 0;
+    public uint Explore(HashSet<MapPoint> unvisited, MapPoint[,] map) {
+        while(unvisited.Count > 0) {
+            var closest = unvisited.OrderBy(u => u.TentativeDistanceValue).First();
+            var closestExlorer = new Explorer(closest, map.GetLength(0), map.GetLength(1));
+            
+            if (closestExlorer.Current.IsEnd) 
+            {
+                // Oh wauw!
+                System.Console.WriteLine("Yes found it");
+                return closest.TentativeDistanceValue;
+            }
+
+            closestExlorer.Visit(unvisited, map);
         }
 
-        // Now we go through the grid in all possible ways!
-        var shortestRoutes = explorer.LookArround(map)
-            .Select(e => Explore(e,map))
-            .Where(i => i >= 0)
-            .OrderBy(i => i)
-            .ToArray();
-        
-        var shortest = shortestRoutes.FirstOrDefault(-1);
-        if (shortest != -1)
-            shortest++;
-        return shortest;
+        return 0;
     }
 }
