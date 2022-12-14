@@ -4,36 +4,47 @@ using Newtonsoft.Json.Linq;
 namespace advent_of_code_day13;
 
 
-public class ComPair
+public class ComLine : IComparable
 {
-    public ComPair(string[] pairs)
+    public ComLine(string line, bool isDividerPacket = false)
     {
-        FirstString = pairs[0];
-        SecondString = pairs[1];
-        First = JsonConvert.DeserializeObject<JToken>(FirstString);
-        Second = JsonConvert.DeserializeObject<JToken>(SecondString);
+        Line = JsonConvert.DeserializeObject<JToken>(line);
+        IsDividerPacket = isDividerPacket;
+        RawLine = line;
     }
 
-    // Compare 
+    public bool IsDividerPacket { get; set; }
+
+    public string RawLine { get; set; } = "unknown";
+
+    public ComLine(JToken line)
+    {
+        Line = line;
+    }
+
+    // Compare them
     // left == right returns 0
     // left > right returns 1
     // left < right returns -1
-    public int IsInRightOrder(JToken left, JToken right) 
+    public int CompareTo(object? rawRight)
     {
+        var right = rawRight as ComLine;
+        if (right == null)
+          throw new InvalidProgramException("This should not happen in this example");
+
         // The right side is leading, see if the left side can follow
-        if (left is JValue && right is JValue)
+        if (this.Line is JValue && right.Line is JValue)
         {
-            var valueLeft = ((JToken)left).ToObject<int>();
-            var valueRight = ((JToken)right).ToObject<int>();
+            var valueLeft = this.Line.ToObject<int>();
+            var valueRight = ((JToken)right.Line).ToObject<int>();
             
             return valueLeft.CompareTo(valueRight);
-            
         }
         
-        if (left is JArray && right is JArray)
+        if (this.Line is JArray && right.Line is JArray)
         {
-            var itLeft = ((JArray)left).GetEnumerator();
-            var itRight = ((JArray)right).GetEnumerator();
+            var itLeft = ((JArray)this.Line).GetEnumerator();
+            var itRight = ((JArray)right.Line).GetEnumerator();
             do 
             {
                 var leftMoved = itLeft.MoveNext();
@@ -41,7 +52,8 @@ public class ComPair
 
                 if (leftMoved && rightMoved)
                 {
-                    var compare = IsInRightOrder(itLeft.Current, itRight.Current);
+                    var left = new ComLine(itLeft.Current);
+                    var compare = left.CompareTo(new ComLine(itRight.Current));
                     if (compare != 0)
                     {
                         if (compare > 0)
@@ -73,26 +85,25 @@ public class ComPair
         }
         
         // One of them is not the same so we need to convert it in this case.
-        // We can only have this last because it would go on forever otherwise.
-        return IsInRightOrder(ConvertIfNeeded(left), ConvertIfNeeded(right));
+        // We can only have this last because it would go on forever otherwise.        
+        return ConvertIfNeeded(this.Line)
+            .CompareTo(
+                ConvertIfNeeded(right.Line));
     }
 
-    public JArray ConvertIfNeeded(JToken container)
+    public ComLine ConvertIfNeeded(JToken container)
     {
         var result = container as JArray;
         if (result == null)
         {
             // We just pick one here is that right? Or should we be greedy until you have the same number of elements?
-            return new JArray(new Object[] { container } );
+            result = new JArray(new Object[] { container } );
         }
 
-        return result;
+        return new ComLine(result);
     }
 
-    public string FirstString { get; set; }
-    public string SecondString { get; set; }
-    public JToken First { get; set; }
-    public JToken Second { get; set; }
+    public JToken Line { get; set; }
 }
 
 public class Day13
@@ -100,17 +111,21 @@ public class Day13
     public async Task Execute()
     {
         var lines = await File.ReadAllLinesAsync("console/day13.txt");
+        var parsedLines = lines
+            .Where(s => s != string.Empty)
+            .Select(s => new ComLine(s))
+            .ToList();        
+        parsedLines.AddRange(new ComLine[] { 
+            new ComLine("[[2]]", true), 
+            new ComLine("[[6]]", true)});
 
-        var pairs = lines.Where(s => s != string.Empty).Chunk(2).Select(s2 => new ComPair(s2)).ToList();
-        int counter = 0;
-        var results = pairs.Select(
-            i => new { 
-                someindex = ++counter,
-                pairs = i, 
-                compare = i.IsInRightOrder(i.First, i.Second) 
-            }).ToArray();
-        var sum = results.Where(a => a.compare == -1).Sum(a => a.someindex);
-        System.Console.WriteLine($"part1: {sum}");     
+        var counter = 0;
+        var ordered = parsedLines
+            .OrderBy(c => c)
+            .Select(i => new {index = ++counter, line = i })
+            .ToList();
+
+        var dividerPackets = ordered.Where(l => l.line.IsDividerPacket).ToList();
+        System.Console.WriteLine($"part2: {dividerPackets[0].index * dividerPackets[1].index}");     
     }
-
 }
