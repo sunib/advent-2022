@@ -66,15 +66,13 @@ public class Day14
         public int Y { get; set; }
 
         public int MaxY { get; set; }
-
-        public bool EthernalFall { get; set; }
         
-        // Return true is fail succeeded, when it's false we can stop. We should also check if is below the MaxY!
+        // Return true if we are not in rest yet
         public bool Fall(Fill[,] grid)
         {
-            if (Y >= MaxY)
+            if (Y >= MaxY + 1)  // We now have a floor!
             {
-                EthernalFall = true;
+                grid[X,Y+1]= Fill.rock;    // Nice: draw the floor here!
                 return false;
             }
 
@@ -117,13 +115,12 @@ public class Day14
 
     public async Task Execute()
     {
-        System.Console.WriteLine("Let's start it");
         var lines = await File.ReadAllLinesAsync("console/day14.txt");
         var walls = lines.Select(l => new Wall(l, r)).ToList();
         var maxX = walls.Max(w => w.MaxX);
         var maxY = walls.Max(w => w.MaxY);
 
-        var grid = new Fill[maxX + 5, maxY + 5];
+        var grid = new Fill[maxX + 500, maxY + 5];
 
         // Fill all the walls
         foreach (var wall in walls)
@@ -174,16 +171,21 @@ public class Day14
         do {
             movingSand = new MovingSand(500, 0, maxY);
             while(movingSand.Fall(grid));
-            if (!movingSand.EthernalFall) {
-                sands++;
-                grid[movingSand.X, movingSand.Y] = Fill.sand;
-            }
+            sands++;
+            grid[movingSand.X, movingSand.Y] = Fill.sand;
+            //DrawGrid(grid);
+        } while (TestIfWeCanStillFall(grid, maxY));  // Check if it's blocked now
 
-            DrawGrid(grid);
-        } while (!movingSand.EthernalFall);
-
-        System.Console.WriteLine($"part1: {sands}");
+        System.Console.WriteLine($"part2: {sands + 1}");
+        DrawGrid(grid);
     }
+
+    public bool TestIfWeCanStillFall(Fill[,] grid, int maxY)
+    {
+        var movingSand = new MovingSand(500, 0, maxY);
+        return movingSand.Fall(grid);   // Do a first fall to see if that works!
+    }
+
 
     public void DrawGrid(Fill[,] grid)
     {
