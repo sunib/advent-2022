@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text.RegularExpressions;
 namespace advent_of_code_day15;
 
@@ -71,31 +72,50 @@ public class Day15
         var lines = await File.ReadAllLinesAsync("console/day15.txt");
         var sensors = lines.Select(l => new Sensor(l, r)).ToList();
 
-        var iy = 2000000;    // Intersect value of y
-        var intersections = sensors
-            .Select(s => s.IntersectWith(iy))
-            .Where(t => t != null).ToArray();
-        
-        var xLocationsBeacons = sensors
-            .Where(s => s.ClosestBeacon.Y == iy)
-            .Select(s => s.ClosestBeacon.X)
-            .Distinct();
+        var tuningFreq = Part2(sensors);
+        System.Console.WriteLine($"part2: {tuningFreq}");
+        // Not right:
+        // 320708895
+        // 13267474686239 -> thank you biginteger!
+    }
 
-        var maxx = intersections.Max(t => t.Item2);
-        var minx = intersections.Min(t => t.Item1);
-        var hits = 0;
-        for (int x = minx; x <= maxx; x++)
+    // Part 2
+    // Distress beacon is not a closest beacon for any sensor!
+    // x,y is not bigger then 4000000
+    // answer = tuning frequency: x*4000000+y
+    // search space is smallar x and y at most 20
+    // beacon can only ba x=14, y=11
+    private static BigInteger Part2(List<Sensor> sensors)
+    {
+        var tuningFreq = 0;
+        for (int y = 0; y <= 4000000; y++)
         {
-            if (intersections.Any(i => x >= i.Item1 && x <= i.Item2))
+            if (y % 10000 == 0)
+                System.Console.WriteLine($"y: {y}");
+
+            var intersections = sensors
+                .Select(s => s.IntersectWith(y))
+                .Where(t => t != null)
+                .OrderBy(s => s.Item1)
+                .ToList();
+
+            for (int x = 0; x <= 4000000; x++)
             {
-                // Check that it's not a beacon!
-                if (!xLocationsBeacons.Contains(x))
+                var current = intersections.FirstOrDefault(i => x >= i.Item1 && x <= i.Item2);
+                if (current != null)
                 {
-                    hits++;
+                    x = current.Item2;
+                    //intersections.Remove(current);
+                }
+                else 
+                {
+                    System.Console.WriteLine("Bam");
+                    var result = new BigInteger(4000000);
+                    return result * new BigInteger(x) + new BigInteger(y);
                 }
             }
         }
 
-        System.Console.WriteLine($"part1: {hits}");
+        return tuningFreq;
     }
 }
