@@ -53,10 +53,11 @@ public class Day16
         r = new Regex(pat, RegexOptions.Compiled);
     }
 
+    public Graph g = new Graph();
+
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("console/day16.txt");
-        var g = new Graph();
+        var lines = await File.ReadAllLinesAsync("console/day16-simple.txt");
         var valves = lines.Select(l => new Valve(l, r, g)).ToList();
         foreach (var valve in valves)
             valve.Resolve(valves, g);
@@ -64,81 +65,111 @@ public class Day16
         var openValves = valves
             .Where(v => v.Rate > 0)
             .OrderByDescending(v => v.Rate)
-            .ToArray();
-        var openValvesChars = openValves.Select(v => v.ShortId).ToArray();    
-        var openValvesString = new String(openValvesChars, 0, openValves.Length);
+            .ToList();
                 
         var aa = valves.First(v => v.Id == "AA");
-
-        // Take the top 5 and pick the closest
-        // Repeat this until we have the cheapset route
-        // We might want to randomize this a little bit.
-
-        var minutesLeft = 30;
-        while (minutesLeft > 0)
-        {
-
-
-
-
-
-        }
-
-        
-
-        // Just create all options that we could search
-        // Then go traverse that thing back and forth! Calculate afterwards the costs
-
         //1235
         // Guess: 2704 -> that is to high?!
-        
-        var result = 412;
+        var result = Tick(aa, 32, 0, 0, openValves);
         System.Console.WriteLine($"part1: {result}");
     }
 
+    public Dictionary<string, int> searchCache = new Dictionary<string, int>();
     // So we will only use this to find the shortest route but still be a brutforcing it.
-    public int FindPath(Graph g, Valve start, Valve end)
+    public int FindPath(Valve start, Valve end)
     {
-        AStar AS = new AStar(g);
-        AS.SearchPath(start.Node, end.Node);
-        return AS.PathByNodes.Count();  // During the traversal we should actually also decide if we want to open valves! Might be worth it. Or not?
-    }
+        var cacheString = $"{start.ShortId}{end.ShortId}";  // Paths in both directions are the same!
+        if (end.ShortId < start.ShortId)
+        {
+            cacheString = $"{end.ShortId}{start.ShortId}";
+        }
+        
+        int result = 0;
+        if (!searchCache.TryGetValue(cacheString, out result))
+        {
+            AStar AS = new AStar(g);
+            AS.SearchPath(start.Node, end.Node);
+            searchCache.Add(cacheString, AS.PathByNodes.Count());
+            return AS.PathByNodes.Count();  // During the traversal we should actually also decide if we want to open valves! Might be worth it. Or not?
+        }
 
+        return result;
+    }
 
     // We could also save the previous calculations with the same input data. The only thing is that we should not keep minutesleft, total and releasing off course.
 
-    public int Tick(Valve valve, int minutesLeft, int releasing, int total, string openValves)
+    public class DecisionOption
     {
-        minutesLeft--;
+        public DecisionOption(int steps, int totalValue, Valve next, Func<int> func)
+        {
+            TotalValue = totalValue;
+            Steps = steps;
+            Next = next;
+            Func = func;
+        }
+        public Func<int> Func;
+        public int Steps;
+        public int TotalValue { get; set; }
+        public Valve Next { get; set; }
+    }
+
+    public int highestResult = 0;
+    public int Tick(Valve valve, int minutesLeft, int releasing, int total, List<Valve> openValves)
+    {
         var result = total;
         if (minutesLeft > 0)
         {
-            total = total + releasing;
-            result = total;
-            if (openValves.Length > 0)
+            if (openValves.Count > 0)
             {
-                var valvePosition = openValves.IndexOf(valve.ShortId);
-                if (valvePosition > -1) // So we have the valve in our open list
+                // First calculate some routes and multiply it. In the calculation it does make sense to take into account our current location (opening). It could be more efficeient to visit a nearby big valve first.
+                var options = new List<DecisionOption>();
+                if (openValves.Contains(valve))
                 {
-                    result = int.Max(result,
-                        Tick(valve, minutesLeft, releasing + valve.Rate, total, openValves.Remove(valvePosition, 1)));
+                    options.Add(new DecisionOption(1, valve.Rate*minutesLeft, valve, () => {
+                        var openValvesMin1 = openValves.ToList();
+                        openValvesMin1.Remove(valve);
+                        return Tick(valve, 
+                                minutesLeft - 1, 
+                                releasing + valve.Rate, 
+                                total + releasing, 
+                                openValvesMin1);
+                    }));                    
+                }
+                
+                foreach (var item in openValves)
+                {
+                    if (item != valve)  // Don't investigate yourself: will never finish!
+                    {
+                        var minutes = FindPath(valve, item);
+                        if (minutesLeft > minutes)
+                        {
+                            options.Add(new DecisionOption(minutes, item.Rate*(minutesLeft - minutes), item, () => {
+                            return Tick(item, 
+                                minutesLeft - minutes, 
+                                releasing,
+                                total + (releasing * minutes), 
+                                openValves);
+                        }));
+                        }
+                    }
                 }
 
-                
-                foreach (var item in valve.OtherValves)
+                var best = options.OrderByDescending(t=>t.TotalValue).ToList();
+                foreach (var step in best.Take(6))
                 {
-                    result = int.Max(result,
-                        Tick(item, minutesLeft, releasing, total, openValves));
-                }
-            }
-            else 
-            {
-                // Nothing happens, wait until it's done
-                // We should also be able to calculate when it's done and increase the stuff a bit.
-                result = result + releasing * minutesLeft;
+                    result = int.Max(result, step.Func());
+                }                
             }
         }
         
+        // Let's check if something has happened, if not than then we can skip out 
+        if (result <= total) {
+            // Nothing happens, wait until it's done
+            // We should also be able to calculate when it's done and increase the stuff a bit.
+            result += releasing * minutesLeft;
+            minutesLeft = 0;
+        }
+
         if (result > highestResult)
         {
             highestResult = result;
