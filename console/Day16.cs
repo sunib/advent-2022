@@ -2,47 +2,46 @@ using System.Collections.Concurrent;
 using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
-using EMK.Cartography;
 
 namespace advent_of_code_day16;
 
 public class Day16
 {
     Regex r;
-    
 
-    public class Valve
+    public class Valve : INode
     {
         public static float xCounter = 0;
         public Valve()
         {
         }
 
-        public Valve(string line, Regex r, Graph g)
+        public Valve(string line, Regex r)
         {
             var result = r.Match(line);              
             Id = result.Groups["v"].Value;
             var bytes = new byte[]{ (byte)Id[0], (byte)Id[1] };
             ShortId = Encoding.Unicode.GetString(bytes)[0];
             Rate = int.Parse(result.Groups["fr"].Value);
-            OtherValveIds = result.Groups["ov"].Captures.Select(c => c.Value).ToList();
-            Node = g.AddNode(ShortId,0,0);
+            OtherValveIds = result.Groups["ov"].Captures.Select(c => c.Value).ToHashSet();
         }
-
-        public Node Node {get;set;}
         public char ShortId { get; set; }
         public string Id { get; set; }
         public int Rate { get; set; }
-        public List<string> OtherValveIds {get; set;} = new List<string>();
-        public List<Valve> OtherValves { get; set; } = new List<Valve>();
+        public HashSet<string> OtherValveIds {get; set;} = new HashSet<string>();
+        public HashSet<Valve> OtherValves { get; set; } = new HashSet<Valve>();
 
-        public void Resolve(List<Valve> valves, Graph g)
+        public HashSet<T> GetAdjacenctNodes<T>() where T : INode
+        {
+            return OtherValves.Cast<T>().ToHashSet();
+        }
+
+        public void Resolve(List<Valve> valves)
         {
             foreach (var id in OtherValveIds)
             {
                 var valve = valves.Single(v => v.Id == id);
                 OtherValves.Add(valve);
-                g.Add2Arcs(valve.Node, Node, 1);
             }
         }
     }
@@ -53,14 +52,12 @@ public class Day16
         r = new Regex(pat, RegexOptions.Compiled);
     }
 
-    public Graph g = new Graph();
-
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("console/day16-simple.txt");
-        var valves = lines.Select(l => new Valve(l, r, g)).ToList();
+        var lines = await File.ReadAllLinesAsync("console/day16.txt");
+        var valves = lines.Select(l => new Valve(l, r)).ToList();
         foreach (var valve in valves)
-            valve.Resolve(valves, g);
+            valve.Resolve(valves);
 
         var openValves = valves
             .Where(v => v.Rate > 0)
@@ -68,35 +65,80 @@ public class Day16
             .ToList();
                 
         var aa = valves.First(v => v.Id == "AA");
-        //1235
-        // Guess: 2704 -> that is to high?!
-        var result = Tick(aa, 32, 0, 0, openValves);
+        var result = Tick(aa, 30, 0, 0, openValves);
         System.Console.WriteLine($"part1: {result}");
+        //1991 is not the right answer
+        //That's not the right answer. Curiously, it's the right answer for someone else; you might be logged in to the wrong account or just unlucky.
     }
 
+    public interface INode {
+        public HashSet<T> GetAdjacenctNodes<T>() where T : INode;
+    }
+
+    // Thanks koder dojo
+    // https://www.koderdojo.com/blog/breadth-first-search-and-shortest-path-in-csharp-and-net-core
+    public Func<T, IEnumerable<T>> BreadthFirstSearch<T>(T start) where T : class, INode {
+        var previous = new Dictionary<T, T>();
+        var queue = new Queue<T>();
+        queue.Enqueue(start);
+        while (queue.Count > 0) {
+            var vertex = queue.Dequeue();            
+            foreach(var neighbor in vertex.GetAdjacenctNodes<T>())
+            {
+                if (previous.ContainsKey(neighbor))
+                    continue;
+    
+                previous[neighbor] = vertex;
+                queue.Enqueue(neighbor);
+            }
+        }
+
+        // So you do that once and then are able to do it again?
+        Func<T, IEnumerable<T>> shortestPath = (v) => {
+            var path = new List<T>{};
+
+            var current = v;
+            while (!current.Equals(start)) {
+                path.Add(current);
+                current = previous[current];
+            };
+
+            path.Add(start);
+            path.Reverse();
+            return path;
+        };
+
+        return shortestPath;
+    }
+
+    Dictionary<Valve,
+        Func<Valve, IEnumerable<Valve>>> traversals = new Dictionary<Valve, Func<Valve, IEnumerable<Valve>>>();
     public Dictionary<string, int> searchCache = new Dictionary<string, int>();
-    // So we will only use this to find the shortest route but still be a brutforcing it.
     public int FindPath(Valve start, Valve end)
     {
-        var cacheString = $"{start.ShortId}{end.ShortId}";  // Paths in both directions are the same!
+        var cacheString = $"{start.Id}{end.Id}";  // Paths in both directions are the same!
         if (end.ShortId < start.ShortId)
         {
-            cacheString = $"{end.ShortId}{start.ShortId}";
+            cacheString = $"{end.Id}{start.Id}";
         }
         
         int result = 0;
         if (!searchCache.TryGetValue(cacheString, out result))
         {
-            AStar AS = new AStar(g);
-            AS.SearchPath(start.Node, end.Node);
-            searchCache.Add(cacheString, AS.PathByNodes.Count());
-            return AS.PathByNodes.Count();  // During the traversal we should actually also decide if we want to open valves! Might be worth it. Or not?
+            Func<Valve, IEnumerable<Valve>> lookupFunction;
+            if (!traversals.TryGetValue(start, out lookupFunction))
+            {
+                lookupFunction = BreadthFirstSearch<Valve>(start);
+                traversals.Add(start, lookupFunction);
+            }
+
+            var path = lookupFunction(end);
+            result = path.Count() - 1;
+            searchCache.Add(cacheString, result);
         }
 
         return result;
     }
-
-    // We could also save the previous calculations with the same input data. The only thing is that we should not keep minutesleft, total and releasing off course.
 
     public class DecisionOption
     {
@@ -122,23 +164,22 @@ public class Day16
             if (openValves.Count > 0)
             {
                 // First calculate some routes and multiply it. In the calculation it does make sense to take into account our current location (opening). It could be more efficeient to visit a nearby big valve first.
-                var options = new List<DecisionOption>();
-                if (openValves.Contains(valve))
-                {
-                    options.Add(new DecisionOption(1, valve.Rate*minutesLeft, valve, () => {
-                        var openValvesMin1 = openValves.ToList();
-                        openValvesMin1.Remove(valve);
-                        return Tick(valve, 
-                                minutesLeft - 1, 
-                                releasing + valve.Rate, 
-                                total + releasing, 
-                                openValvesMin1);
-                    }));                    
-                }
-                
+                var options = new List<DecisionOption>();                
                 foreach (var item in openValves)
                 {
-                    if (item != valve)  // Don't investigate yourself: will never finish!
+                    if (item == valve)
+                    {
+                        options.Add(new DecisionOption(1, valve.Rate*minutesLeft, valve, () => {
+                            var openValvesMin1 = openValves.ToList();
+                            openValvesMin1.Remove(valve);
+                            return Tick(valve, 
+                                    minutesLeft - 1, 
+                                    releasing + valve.Rate, 
+                                    total + releasing, 
+                                    openValvesMin1);
+                        }));
+                    }
+                    else
                     {
                         var minutes = FindPath(valve, item);
                         if (minutesLeft > minutes)
@@ -154,11 +195,14 @@ public class Day16
                     }
                 }
 
-                var best = options.OrderByDescending(t=>t.TotalValue).ToList();
-                foreach (var step in best.Take(6))
+                if (options.Count > 0)
                 {
-                    result = int.Max(result, step.Func());
-                }                
+                    var best = options.OrderByDescending(t=>t.TotalValue).ToList();
+                    foreach (var item in best.Take(8))
+                    {
+                        result = int.Max(result, item.Func());
+                    }
+                }
             }
         }
         
@@ -178,5 +222,4 @@ public class Day16
 
         return result;
     }
-
 }
