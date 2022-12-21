@@ -1,14 +1,22 @@
 namespace advent_of_code;
+using System.Threading;
+
 
 
 
 public class SimpleNode {
-    public SimpleNode(string name, SimpleNode parent, int size = 0)
+    public SimpleNode(string name, SimpleNode parent)
     {
         Name = name;
-        Size = size;
+        Size = 0;
         Parent = parent;
+        FullName = $"{parent?.FullName ?? ""}/{name}";
+        
+        
+        
     }
+
+    public string FullName { get;set; }
 
     public int Size { get; set; }   // This is the total size of all children!
     public string Name { get; set; }
@@ -20,9 +28,10 @@ public class Day7
 {
     public async Task Execute()
     {
-        var root = new SimpleNode("root", null, 0);
+        var root = new SimpleNode("root", null);
+        var root2 = new Dictionary<string, int>();
         var currentNode = root;
-        var lines = await File.ReadAllLinesAsync("day7_5mb_large.txt");
+        var lines = await File.ReadAllLinesAsync("console/day7_5mb_large.txt");
         int lineCount = 0;
         foreach (var line in lines)
         {
@@ -58,18 +67,21 @@ public class Day7
             {
                 if (parts[0] == "dir")
                 {
-                    currentNode.Children.Add(new SimpleNode(parts[1], currentNode, 0));
+                    var newNode = new SimpleNode(parts[1], currentNode);
+                    currentNode.Children.Add(newNode);
+                    root2.Add(newNode.FullName, 0);
                 }
                 else
                 {
                     var fileSize = int.Parse(parts[0]);                    
+                    currentNode.Size += fileSize;
                     // Move up and add number of bytes so that we have our totals
-                    var sumNode = currentNode;
-                    while (sumNode != null)
-                    {
-                        sumNode.Size += fileSize;
-                        sumNode = sumNode.Parent;
-                    }
+                    // var sumNode = currentNode;
+                    // while (sumNode != null)
+                    // {
+                    //     
+                    //     sumNode = sumNode.Parent;
+                    // }
                 }
             }
         }
@@ -77,9 +89,13 @@ public class Day7
         // Now we will need to recursive to count to amount of folders
         var totalSize = 70000000;
         var required = 30000000;
+        System.Console.WriteLine("Start calculate on file sizes");
+        CalculateSizes(root);    // First traverse so that we know how big it is
+        System.Console.WriteLine("Total size = " + root.Size);
         var currentlyFree = totalSize - root.Size;
         if (currentlyFree < required) 
         {
+            System.Console.WriteLine("Now starting to find the best fit");
             var toBeDeletedFolder = CountBigFolders(root, root, required - currentlyFree);
             Console.WriteLine("The end: " + toBeDeletedFolder.Size);
         }
@@ -89,19 +105,28 @@ public class Day7
         }        
     }
 
-    public SimpleNode CountBigFolders(SimpleNode start, SimpleNode currentLowest, int minimalDeleted)
+    public void CalculateSizes(SimpleNode current)
     {
-        SimpleNode result = currentLowest;        
-        if (start.Size <= currentLowest.Size && start.Size >= minimalDeleted && start.Parent != null)
+        foreach (var folder in current.Children)
+        {
+            CalculateSizes(folder);
+            current.Size += folder.Size;
+        }
+    }
+
+    public SimpleNode CountBigFolders(SimpleNode start, SimpleNode currentLowest, int minimalSize = 0)
+    {
+        SimpleNode result = currentLowest;
+        if (start.Size <= currentLowest.Size && start.Size >= minimalSize && start.Parent != null)
         {
             result = start;
         }
 
         foreach (var folder in start.Children)
         {
-            result = CountBigFolders(folder, result, minimalDeleted);
+            result = CountBigFolders(folder, result, minimalSize);
         }
-        
+
         return result;
     }
 }

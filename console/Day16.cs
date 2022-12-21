@@ -36,13 +36,14 @@ public class Day16
             return OtherValves.Cast<T>().ToHashSet();
         }
 
-        public void Resolve(List<Valve> valves)
+        public void Resolve(List<Valve> valves, List<string> output)
         {
             foreach (var id in OtherValveIds)
             {
                 var valve = valves.Single(v => v.Id == id);
                 OtherValves.Add(valve);
-            }
+                output.Add($"{this.Id}-{id}");
+            }            
         }
     }
 
@@ -56,8 +57,11 @@ public class Day16
     {
         var lines = await File.ReadAllLinesAsync("console/day16.txt");
         var valves = lines.Select(l => new Valve(l, r)).ToList();
+        
+        var output = new List<string>();
         foreach (var valve in valves)
-            valve.Resolve(valves);
+            valve.Resolve(valves, output);
+        System.IO.File.WriteAllLines("test-output.txt", output);
 
         var openValves = valves
             .Where(v => v.Rate > 0)
@@ -161,6 +165,9 @@ public class Day16
         var result = total;
         if (minutesLeft > 0)
         {
+            // De olifant moet er nu ook bij... De 1e 4 minuten zijn weg maar nu kun je tegelijk erdoorheen wandelen...
+            // Pak elke keer de kleinste actie? Maar je moet dus ook je acties kunnen opbreken nu. Arghh
+
             if (openValves.Count > 0)
             {
                 // First calculate some routes and multiply it. In the calculation it does make sense to take into account our current location (opening). It could be more efficeient to visit a nearby big valve first.
@@ -195,13 +202,9 @@ public class Day16
                     }
                 }
 
-                if (options.Count > 0)
+                foreach (var item in options)
                 {
-                    var best = options.OrderByDescending(t=>t.TotalValue).ToList();
-                    foreach (var item in best.Take(8))
-                    {
-                        result = int.Max(result, item.Func());
-                    }
+                    result = int.Max(result, item.Func());
                 }
             }
         }

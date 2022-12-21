@@ -1,11 +1,11 @@
 ﻿using System.Diagnostics;
-using advent_of_code_day16;
+using advent_of_code_day21;
 
 Stopwatch stopWatch = new Stopwatch();
 stopWatch.Start();        
 checked // Let's check for overflows
 {
-    await new Day16().Execute();
+    await new Day21().Execute();
 }
 stopWatch.Stop();
 TimeSpan ts = stopWatch.Elapsed;
