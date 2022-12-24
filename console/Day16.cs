@@ -1,13 +1,18 @@
 using System.Collections.Concurrent;
+using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
+using Helpers.BreadthFirstSearch;
 
 namespace advent_of_code_day16;
 
 public class Day16
 {
     Regex r;
+    Valve[] openValves;
+    BreadthFirstSearch<Valve> bfs = new BreadthFirstSearch<Valve>();
 
     public class Valve : INode
     {
@@ -63,85 +68,21 @@ public class Day16
             valve.Resolve(valves, output);
         System.IO.File.WriteAllLines("test-output.txt", output);
 
-        var openValves = valves
+        openValves = valves     // We can use this to lookup as well!
             .Where(v => v.Rate > 0)
             .OrderByDescending(v => v.Rate)
-            .ToList();
-                
+            .ToArray();
+
+        // We limit it no two 32 and give them a bit id
+        BitVector32 openValvesMask = new BitVector32();
+        for (int i = 0; i < openValves.Length; i++)
+        {
+            openValvesMask[1 << i] = true;
+        }        
+                        
         var aa = valves.First(v => v.Id == "AA");
-        var result = Tick(aa, 30, 0, 0, openValves);
+        var result = Tick(aa, 30, openValvesMask);
         System.Console.WriteLine($"part1: {result}");
-        //1991 is not the right answer
-        //That's not the right answer. Curiously, it's the right answer for someone else; you might be logged in to the wrong account or just unlucky.
-    }
-
-    public interface INode {
-        public HashSet<T> GetAdjacenctNodes<T>() where T : INode;
-    }
-
-    // Thanks koder dojo
-    // https://www.koderdojo.com/blog/breadth-first-search-and-shortest-path-in-csharp-and-net-core
-    public Func<T, IEnumerable<T>> BreadthFirstSearch<T>(T start) where T : class, INode {
-        var previous = new Dictionary<T, T>();
-        var queue = new Queue<T>();
-        queue.Enqueue(start);
-        while (queue.Count > 0) {
-            var vertex = queue.Dequeue();            
-            foreach(var neighbor in vertex.GetAdjacenctNodes<T>())
-            {
-                if (previous.ContainsKey(neighbor))
-                    continue;
-    
-                previous[neighbor] = vertex;
-                queue.Enqueue(neighbor);
-            }
-        }
-
-        // So you do that once and then are able to do it again?
-        Func<T, IEnumerable<T>> shortestPath = (v) => {
-            var path = new List<T>{};
-
-            var current = v;
-            while (!current.Equals(start)) {
-                path.Add(current);
-                current = previous[current];
-            };
-
-            path.Add(start);
-            path.Reverse();
-            return path;
-        };
-
-        return shortestPath;
-    }
-
-    Dictionary<Valve,
-        Func<Valve, IEnumerable<Valve>>> traversals = new Dictionary<Valve, Func<Valve, IEnumerable<Valve>>>();
-    public Dictionary<string, int> searchCache = new Dictionary<string, int>();
-    public int FindPath(Valve start, Valve end)
-    {
-        var cacheString = $"{start.Id}{end.Id}";  // Paths in both directions are the same!
-        if (end.ShortId < start.ShortId)
-        {
-            cacheString = $"{end.Id}{start.Id}";
-        }
-        
-        int result = 0;
-        if (!searchCache.TryGetValue(cacheString, out result))
-        {
-            Func<Valve, IEnumerable<Valve>> lookupFunction;
-            if (!traversals.TryGetValue(start, out lookupFunction))
-            {
-                lookupFunction = BreadthFirstSearch<Valve>(start);
-                traversals.Add(start, lookupFunction);
-            }
-
-            var path = lookupFunction(end);
-            result = path.Count() - 1;
-            searchCache.Add(cacheString, result);
-        }
-
-        return result;
     }
 
     public class DecisionOption
@@ -159,63 +100,64 @@ public class Day16
         public Valve Next { get; set; }
     }
 
-    public int highestResult = 0;
-    public int Tick(Valve valve, int minutesLeft, int releasing, int total, List<Valve> openValves)
+    public IEnumerable<Valve> GetOpenValves(BitVector32 openValvesMask)
     {
-        var result = total;
-        if (minutesLeft > 0)
-        {
-            // De olifant moet er nu ook bij... De 1e 4 minuten zijn weg maar nu kun je tegelijk erdoorheen wandelen...
-            // Pak elke keer de kleinste actie? Maar je moet dus ook je acties kunnen opbreken nu. Arghh
+        for (int i = 0; i < openValves.Length; i++)
+            if (openValvesMask[1<<i])
+                yield return openValves[i];
+    }
 
-            if (openValves.Count > 0)
+    public BitVector32 CloseValve(Valve valve, BitVector32 openValvesMask)
+    {
+        var result = new BitVector32(openValvesMask);
+        for (int i = 0; i < openValves.Length; i++)
+            if (openValves[i] == valve)
             {
-                // First calculate some routes and multiply it. In the calculation it does make sense to take into account our current location (opening). It could be more efficeient to visit a nearby big valve first.
-                var options = new List<DecisionOption>();                
-                foreach (var item in openValves)
-                {
-                    if (item == valve)
-                    {
-                        options.Add(new DecisionOption(1, valve.Rate*minutesLeft, valve, () => {
-                            var openValvesMin1 = openValves.ToList();
-                            openValvesMin1.Remove(valve);
-                            return Tick(valve, 
-                                    minutesLeft - 1, 
-                                    releasing + valve.Rate, 
-                                    total + releasing, 
-                                    openValvesMin1);
-                        }));
-                    }
-                    else
-                    {
-                        var minutes = FindPath(valve, item);
-                        if (minutesLeft > minutes)
-                        {
-                            options.Add(new DecisionOption(minutes, item.Rate*(minutesLeft - minutes), item, () => {
-                            return Tick(item, 
-                                minutesLeft - minutes, 
-                                releasing,
-                                total + (releasing * minutes), 
-                                openValves);
-                        }));
-                        }
-                    }
-                }
+                result[1 << i] = false;
+                return result;
+            }
+        
+        throw new InvalidDataException("This valve was already closed");
+    }
 
-                foreach (var item in options)
+    public record CachedTick (Valve Valve, int MinutesLeft, BitVector32 openValvesMask);
+    private Dictionary<CachedTick, int> tickCache = new Dictionary<CachedTick, int>();    
+
+    public int highestResult = 0;
+    public int Tick(Valve valve, int minutesLeft, BitVector32 openValvesMask)
+    {
+        var result = 0;
+        var parameters = new CachedTick(valve, minutesLeft, openValvesMask);
+        if (tickCache.TryGetValue(parameters, out result) || 
+            openValvesMask.Data == 0 || 
+            minutesLeft <= 0)
+        {
+            return result;
+        }
+
+        // First calculate some routes and multiply it. In the calculation it does make sense to take into account our current location (opening). It could be more efficeient to visit a nearby big valve first.
+        var results = new List<int>();
+        foreach (var item in GetOpenValves(openValvesMask))
+        {
+            if (item == valve)
+            {   
+                // We should also decide not do it!
+                results.Add(
+                    valve.Rate * (minutesLeft - 1) + 
+                    Tick(valve, minutesLeft - 1, CloseValve(valve, openValvesMask)));
+            }
+            else
+            {
+                var minutes = bfs.FindPath(valve, item);
+                if (minutesLeft > minutes)
                 {
-                    result = int.Max(result, item.Func());
+                    results.Add(Tick(item, minutesLeft - minutes, openValvesMask));
                 }
             }
         }
-        
-        // Let's check if something has happened, if not than then we can skip out 
-        if (result <= total) {
-            // Nothing happens, wait until it's done
-            // We should also be able to calculate when it's done and increase the stuff a bit.
-            result += releasing * minutesLeft;
-            minutesLeft = 0;
-        }
+
+        if (results.Count > 0)
+            result += results.Max();
 
         if (result > highestResult)
         {
@@ -223,6 +165,7 @@ public class Day16
             System.Console.WriteLine("highest result: " + highestResult);
         }
 
+        tickCache.Add(parameters, result);
         return result;
     }
 }
