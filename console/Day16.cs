@@ -26,11 +26,10 @@ public class Day16
             var result = r.Match(line);              
             Id = result.Groups["v"].Value;
             var bytes = new byte[]{ (byte)Id[0], (byte)Id[1] };
-            ShortId = Encoding.Unicode.GetString(bytes)[0];
             Rate = int.Parse(result.Groups["fr"].Value);
             OtherValveIds = result.Groups["ov"].Captures.Select(c => c.Value).ToHashSet();
         }
-        public char ShortId { get; set; }
+
         public string Id { get; set; }
         public int Rate { get; set; }
         public HashSet<string> OtherValveIds {get; set;} = new HashSet<string>();
@@ -83,21 +82,6 @@ public class Day16
         var aa = valves.First(v => v.Id == "AA");
         var result = Tick(aa, 30, openValvesMask);
         System.Console.WriteLine($"part1: {result}");
-    }
-
-    public class DecisionOption
-    {
-        public DecisionOption(int steps, int totalValue, Valve next, Func<int> func)
-        {
-            TotalValue = totalValue;
-            Steps = steps;
-            Next = next;
-            Func = func;
-        }
-        public Func<int> Func;
-        public int Steps;
-        public int TotalValue { get; set; }
-        public Valve Next { get; set; }
     }
 
     public IEnumerable<Valve> GetOpenValves(BitVector32 openValvesMask)
