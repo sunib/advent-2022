@@ -13,6 +13,8 @@ public class Day21
 
     }
 
+    private static double humn;
+
     public class Constant : IExpression
     {
         public Constant(string id, double value)
@@ -26,6 +28,9 @@ public class Day21
 
         public double? Evaluate(Dictionary<string, IExpression> lookupTable)
         {
+            if (Id == "humn")
+                return humn;
+        
             return Value;
         }
     }
@@ -40,7 +45,7 @@ public class Day21
             Op = op;
         }
 
-        public string Id {get;set;}
+        public string Id { get; set; }
         public string Left { get; set; }
         public string Right { get; set; }
         public string Op { get; set; }
@@ -59,7 +64,7 @@ public class Day21
                 else if (Op == "/")
                     return nr1 / nr2;
             }
-
+            
             return null;
         }
     }
@@ -92,21 +97,55 @@ public class Day21
     {
         var lines = await File.ReadAllLinesAsync("console/day21.txt");
         var operations = lines.Select(l => ParseLine(l,r)).ToDictionary(e => e.Id);
-        // foreach (var item in operations)
-        // {
-        //     // We should create a new dictioanry perhaps?
-        //     if (item.Value is Operation)
-        //     {
-        //         var newValue = item.Value.Evaluate(operations);
-        //         if (newValue.HasValue)
-        //         {
-        //             operations[item.Key] = new Constant(item.Key, newValue.Value);
-        //             System.Console.WriteLine("Yes replacing something!");
-        //         }
-        //     }            
-        // }
         
-        System.Console.WriteLine($"part1: {operations["root"].Evaluate(operations)}");
-    }
+        // humn
+        // root should be = so the numbers should match.
+        // root: fglq (this is where x is found at > 20 levels deep) + fzbp (42130890593816)
+        // Which one is actually using humn?                                 42130857978819,95
+        //                                                                   42130857978813,234
+        //                                                                   42130857978829,53
+            //                                                               42130857981875,93
+            //                                                               42130857978617,76
+        var expression = operations["fglq"];  // Can we get back the path back to the top?
+        
+        // humn fglq
+        // 0    100576930890443,2
+        // 1    100576930890426,9
+        // 2    100576930890410,62
+        // 3    100576930890394,33
+        // 100  100576930888814,11
+        // 200  100576930887185,02
+        // 1000 100576930874152,3
+        // -16,3 per stap
+        // 3587649564887 42130857978829,53
+        // 3587649564000 3587649564887,5874
+        // 3587649564700 42130857981875,93
+        // 3587649564900 42130857978617,76
+        // 3587649566000 3587649564887,5874
+        double fcbp = 100576930890443.2 - 42130890593816;
+        double delta = 16.2909;
+        double answer = fcbp / delta;
+        System.Console.WriteLine(answer);
 
+        humn = 3587649564900;
+        for (double i = 3587647562800; i < 3587647562863; i++)
+                     // 3587647562860
+//3587647562851
+        {
+            humn = i;   // Brute forcing the answer by approximation
+            var value2 = expression.Evaluate(operations);
+            var diff = value2 - 42130890593816;
+            if (diff < 0)
+            {
+                System.Console.WriteLine("Flip!");
+            }
+            System.Console.WriteLine($"part2: {value2 - 42130890593816}");
+
+        }
+
+
+        humn = 3587647562851;
+        var value = expression.Evaluate(operations);
+        System.Console.WriteLine($"part2 - final: {value - 42130890593816}");
+    }
 }

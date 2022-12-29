@@ -186,7 +186,7 @@ qtsc: pmzq - dldh
 cqdn: 18
 qzws: 4
 hbhw: 2
-humn: 726
+humn: 0
 vjsm: drnj * ntrh
 gfmh: njgg * vdpv
 chcc: vjsm - cldh
