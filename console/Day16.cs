@@ -55,7 +55,7 @@ public class Day16
 
     public async Task Execute()
     {
-        var lines = await File.ReadAllLinesAsync("console/day16-simple.txt");
+        var lines = await File.ReadAllLinesAsync("console/day16.txt");
         var valves = lines.Select(l => new Valve(l, r)).ToList();
         
         var output = new List<string>();
@@ -77,7 +77,7 @@ public class Day16
         }        
                         
         var aa = valves.First(v => v.Id == "AA");
-        var result = Tick(new Opener(aa, 0), new Opener(aa, 0), 26, openValvesMask, true);
+        var result = Tick(new Opener(aa, 0), new Opener(aa, 0), 26, openValvesMask);
         System.Console.WriteLine($"part2: {result}");
     }
     
@@ -91,7 +91,7 @@ public class Day16
     public bool TryCloseValve(Valve valve, ref BitVector32 openValvesMask)
     {
         for (int i = 0; i < openValves.Length; i++)
-            if (openValves[i] == valve)
+            if (openValves[i] == valve && openValvesMask[1<<i])     // Throw error if you try it for a second time?
             {
                 openValvesMask[1 << i] = false;
                 return true;
@@ -114,7 +114,7 @@ public class Day16
     public record CachedTick (Opener A, Opener B, int minutesLeft, BitVector32 openValvesMask);
     private Dictionary<CachedTick, int> tickCache = new Dictionary<CachedTick, int>();    
     public int highestResult = 0;
-    public int Tick(Opener A, Opener B, int minutesLeft, BitVector32 openValvesMask, bool firstTime = false)
+    public int Tick(Opener A, Opener B, int minutesLeft, BitVector32 openValvesMask)
     {
         var result = 0;
         var parameters = new CachedTick(A, B, minutesLeft, openValvesMask);
@@ -132,25 +132,14 @@ public class Day16
         if (A.minutesLeft < B.minutesLeft)
         {
             // A arrived
-            result += CloseValve(B, minutesLeft, ref openValvesMask);
             overrideB = new Opener(B.dest, B.minutesLeft - minutesSincePrevious);   // B is still moving 
         }
         else if (B.minutesLeft < A.minutesLeft)
         {
             overrideA = new Opener(A.dest, A.minutesLeft - minutesSincePrevious);   // A is still moving 
-            result += CloseValve(B, minutesLeft, ref openValvesMask);            
-        }
-        else 
-        {
-            // Arriving at the same time, so two new places need to be found! Itterate all those options that you have then...
-            result += CloseValve(A, minutesLeft, ref openValvesMask);   
-            result += CloseValve(B, minutesLeft, ref openValvesMask);   
         }
 
-        // If one of them is already null then we need a new goal! Then we will start going through the sstuff
         var valvesA = new BitVector32(openValvesMask);
-        if (A.dest.OpenIndex.HasValue)
-            valvesA[1 << A.dest.OpenIndex.Value] = false;   // Do not try to visit yourself (preventSelfVisit)
         if (overrideA != null)
         {
             valvesA = new BitVector32();
@@ -161,9 +150,12 @@ public class Day16
         Opener decisionA = null;
         Opener decisionB = null;
         var results = new List<int>();
-        foreach (var proposedA in GetOpenValves(valvesA))
+        foreach (var proposedA in GetOpenValves(valvesA))       // Moving to yourself because it's an open valve is off course also a valid move that we can include!
         {
-            decisionA = DecideStep(A, proposedA, overrideA, firstTime);
+            var closePointsA = 0;
+            decisionA = DecideStep(A, proposedA, overrideA);
+            if (A.dest == proposedA && overrideA == null)
+                closePointsA = CloseValve(A, minutesLeft, ref openValvesMask);
             var valvesB = new BitVector32(openValvesMask);
             if (overrideB != null)
             {
@@ -173,13 +165,16 @@ public class Day16
             //valvesB[1 << decisionA.dest.OpenIndex.Value] = false; // Do not visit the same valve when there is enouhg other material to visit (but it might be smart if not much options are left?).
             foreach (var proposedB in GetOpenValves(valvesB))
             {
-                decisionB = DecideStep(B, proposedB, overrideB, firstTime);
+                var closePointsB = 0;
+                decisionB = DecideStep(B, proposedB, overrideB);
+                if (B.dest == proposedB && overrideB == null)
+                    closePointsB = CloseValve(B, minutesLeft, ref openValvesMask);  // We might only want to close when we are close!
                 results.Add(
                     Tick(
                         decisionA, // Should we even plan a next step? Or just do it and it will ignore it...
                         decisionB, 
                         minutesLeft - int.Min(decisionA.minutesLeft, decisionB.minutesLeft), 
-                        openValvesMask));
+                        openValvesMask) + closePointsA + closePointsB);
             }
         }
 
@@ -196,7 +191,7 @@ public class Day16
         return result;
     }
 
-    private Opener DecideStep(Opener current, Valve proposed, Opener proposedOverride, bool firstTime)
+    private Opener DecideStep(Opener current, Valve proposed, Opener proposedOverride)
     {
         if (proposedOverride != null)
         {
@@ -205,8 +200,11 @@ public class Day16
         else
         {
             var distance = bfs.FindPath(current.dest, proposed);
-            if (!firstTime)
-                distance++;     // Since we are first opening the thing!
+            if (distance == 0)
+            {
+                distance++;     // Staying at ourself means 'opening' that takes 1 minute
+            }
+
             return new Opener(proposed, distance);
         }
     }
