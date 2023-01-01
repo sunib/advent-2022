@@ -104,13 +104,13 @@ public class Day16
     {
         if (TryCloseValve(current.dest, ref openValvesMask))
         {
-            return (minutesLeft - 1) * current.dest.Rate;   // The actual minute does not count
+            return minutesLeft * current.dest.Rate;
         }
 
         return 0;
     }
 
-    public record Opener(Valve dest, int minutesLeft);
+    public record Opener(Valve dest, int minutesLeft, bool isOpening = false);
     public record CachedTick (Opener A, Opener B, int minutesLeft, BitVector32 openValvesMask);
     private Dictionary<CachedTick, int> tickCache = new Dictionary<CachedTick, int>();    
     public int highestResult = 0;
@@ -126,6 +126,13 @@ public class Day16
             return result;
         }
 
+        // If one of them is opening then we first close it and take our credits!
+        if (A.isOpening)
+            result += CloseValve(A, minutesLeft, ref openValvesMask);
+
+        if (B.isOpening)
+            result += CloseValve(B, minutesLeft, ref openValvesMask);
+
         int minutesSincePrevious = int.Min(A.minutesLeft, B.minutesLeft);
         Opener overrideA = null;
         Opener overrideB = null;
@@ -140,41 +147,35 @@ public class Day16
         }
 
         var valvesA = new BitVector32(openValvesMask);
+        var valvesB = new BitVector32(openValvesMask);
+        
         if (overrideA != null)
         {
             valvesA = new BitVector32();
             valvesA[1 << overrideA.dest.OpenIndex.Value] = true;    // Override to only visit the overriden value
+            valvesB[1 << overrideA.dest.OpenIndex.Value] = false;   // Do not try to visit the one that is already getting a visit
         }
 
-        // Inside the loop we should switch if needed
-        Opener decisionA = null;
-        Opener decisionB = null;
+        if (overrideB != null)
+        { 
+            valvesB = new BitVector32();
+            valvesB[1 << overrideB.dest.OpenIndex.Value] = true; 
+            valvesA[1 << overrideB.dest.OpenIndex.Value] = false; 
+        }
+
         var results = new List<int>();
-        foreach (var proposedA in GetOpenValves(valvesA))       // Moving to yourself because it's an open valve is off course also a valid move that we can include!
+        foreach (var decisionA in GetOpenValves(valvesA).Select(p => DecideStep(A, p, overrideA)).OrderByDescending(d => (minutesLeft - d.minutesLeft) * d.dest.Rate).Take(4))       // Moving to yourself because it's an open valve is off course also a valid move that we can include!
         {
-            var closePointsA = 0;
-            decisionA = DecideStep(A, proposedA, overrideA);
-            if (A.dest == proposedA && overrideA == null)
-                closePointsA = CloseValve(A, minutesLeft, ref openValvesMask);
-            var valvesB = new BitVector32(openValvesMask);
-            if (overrideB != null)
+            var valvesBtemp = new BitVector32(valvesB);
+            valvesBtemp[1 << decisionA.dest.OpenIndex.Value] = false;   // Don't visit what we do in the outer loop already!
+            foreach (var decisionB in GetOpenValves(valvesBtemp).Select(p => DecideStep(B, p, overrideB)).OrderByDescending(d => (minutesLeft - d.minutesLeft) * d.dest.Rate).Take(4))
             {
-                valvesB = new BitVector32();
-                valvesB[1 << overrideB.dest.OpenIndex.Value] = true;    // Override to only visit the overriden value
-            }
-            //valvesB[1 << decisionA.dest.OpenIndex.Value] = false; // Do not visit the same valve when there is enouhg other material to visit (but it might be smart if not much options are left?).
-            foreach (var proposedB in GetOpenValves(valvesB))
-            {
-                var closePointsB = 0;
-                decisionB = DecideStep(B, proposedB, overrideB);
-                if (B.dest == proposedB && overrideB == null)
-                    closePointsB = CloseValve(B, minutesLeft, ref openValvesMask);  // We might only want to close when we are close!
                 results.Add(
                     Tick(
-                        decisionA, // Should we even plan a next step? Or just do it and it will ignore it...
+                        decisionA,
                         decisionB, 
                         minutesLeft - int.Min(decisionA.minutesLeft, decisionB.minutesLeft), 
-                        openValvesMask) + closePointsA + closePointsB);
+                        openValvesMask));
             }
         }
 
@@ -199,13 +200,15 @@ public class Day16
         }
         else
         {
-            var distance = bfs.FindPath(current.dest, proposed);
-            if (distance == 0)
+            if (current.dest == proposed)
             {
-                distance++;     // Staying at ourself means 'opening' that takes 1 minute
+                return new Opener(proposed, 1, isOpening: true);
             }
-
-            return new Opener(proposed, distance);
+            else 
+            {
+                var distance = bfs.FindPath(current.dest, proposed);
+                return new Opener(proposed, distance);
+            }
         }
     }
 }
